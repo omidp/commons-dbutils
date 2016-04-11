@@ -38,6 +38,7 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
+import org.apache.commons.dbutils.AbstractQueryRunner.ArrayParam;
 import org.apache.commons.dbutils.handlers.ArrayHandler;
 import org.apache.commons.dbutils.handlers.ScalarHandler;
 import org.junit.Assert;
@@ -553,5 +554,25 @@ public class QueryRunnerTest {
     public void testBadPrepareConnection() throws Exception {
         runner = new QueryRunner();
         runner.update("update blah set unit = test");
+    }
+    
+    @Test
+    public void testArrayParamQuery() throws Exception {
+        when(meta.getParameterCount()).thenReturn(2);
+        ArrayParam ap = new ArrayParam() {
+            
+            @Override
+            public Object[] getValues()
+            {
+                return new Long[]{1L, 2L};
+            }
+            
+            @Override
+            public String getTypeName()
+            {
+                return "bigint";
+            }
+        };                
+        runner.query(conn, "select * from blah where ID IN (?) AND name = ?", handler, ap, "hi");
     }
 }

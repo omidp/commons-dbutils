@@ -21,6 +21,7 @@ import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
@@ -37,7 +38,8 @@ import javax.sql.DataSource;
  *
  * @since 1.4 (mostly extracted from QueryRunner)
  */
-public abstract class AbstractQueryRunner {
+public abstract class AbstractQueryRunner
+{
     /**
      * Is {@link ParameterMetaData#getParameterType(int)} broken (have we tried
      * it yet)?
@@ -46,7 +48,9 @@ public abstract class AbstractQueryRunner {
 
     /**
      * The DataSource to retrieve connections from.
-     * @deprecated Access to this field should be through {@link #getDataSource()}.
+     * 
+     * @deprecated Access to this field should be through
+     *             {@link #getDataSource()}.
      */
     @Deprecated
     protected final DataSource ds;
@@ -54,7 +58,8 @@ public abstract class AbstractQueryRunner {
     /**
      * Default constructor, sets pmdKnownBroken to false and ds to null.
      */
-    public AbstractQueryRunner() {
+    public AbstractQueryRunner()
+    {
         ds = null;
     }
 
@@ -68,7 +73,8 @@ public abstract class AbstractQueryRunner {
      *            it; if false, we'll try it, and if it breaks, we'll remember
      *            not to use it again.
      */
-    public AbstractQueryRunner(boolean pmdKnownBroken) {
+    public AbstractQueryRunner(boolean pmdKnownBroken)
+    {
         this.pmdKnownBroken = pmdKnownBroken;
         ds = null;
     }
@@ -81,7 +87,8 @@ public abstract class AbstractQueryRunner {
      * @param ds
      *            The <code>DataSource</code> to retrieve connections from.
      */
-    public AbstractQueryRunner(DataSource ds) {
+    public AbstractQueryRunner(DataSource ds)
+    {
         this.ds = ds;
     }
 
@@ -100,7 +107,8 @@ public abstract class AbstractQueryRunner {
      *            it; if false, we'll try it, and if it breaks, we'll remember
      *            not to use it again.
      */
-    public AbstractQueryRunner(DataSource ds, boolean pmdKnownBroken) {
+    public AbstractQueryRunner(DataSource ds, boolean pmdKnownBroken)
+    {
         this.pmdKnownBroken = pmdKnownBroken;
         this.ds = ds;
     }
@@ -112,7 +120,8 @@ public abstract class AbstractQueryRunner {
      *
      * @return DataSource the runner is using
      */
-    public DataSource getDataSource() {
+    public DataSource getDataSource()
+    {
         return this.ds;
     }
 
@@ -127,7 +136,8 @@ public abstract class AbstractQueryRunner {
      *         {@link ParameterMetaData#getParameterType(int) }
      * @since 1.4
      */
-    public boolean isPmdKnownBroken() {
+    public boolean isPmdKnownBroken()
+    {
         return pmdKnownBroken;
     }
 
@@ -148,8 +158,8 @@ public abstract class AbstractQueryRunner {
      * @throws SQLException
      *             if a database access error occurs
      */
-    protected PreparedStatement prepareStatement(Connection conn, String sql)
-            throws SQLException {
+    protected PreparedStatement prepareStatement(Connection conn, String sql) throws SQLException
+    {
 
         return conn.prepareStatement(sql);
     }
@@ -160,9 +170,9 @@ public abstract class AbstractQueryRunner {
      * <code>QueryRunner</code> methods always call this method to prepare
      * statements for them. Subclasses can override this method to provide
      * special PreparedStatement configuration if needed. This implementation
-     * simply calls <code>conn.prepareStatement(sql, returnedKeys)</code>
-     * which will result in the ability to retrieve the automatically-generated
-     * keys from an auto_increment column.
+     * simply calls <code>conn.prepareStatement(sql, returnedKeys)</code> which
+     * will result in the ability to retrieve the automatically-generated keys
+     * from an auto_increment column.
      *
      * @param conn
      *            The <code>Connection</code> used to create the
@@ -177,8 +187,8 @@ public abstract class AbstractQueryRunner {
      *             if a database access error occurs
      * @since 1.6
      */
-    protected PreparedStatement prepareStatement(Connection conn, String sql, int returnedKeys)
-            throws SQLException {
+    protected PreparedStatement prepareStatement(Connection conn, String sql, int returnedKeys) throws SQLException
+    {
 
         return conn.prepareStatement(sql, returnedKeys);
     }
@@ -195,11 +205,11 @@ public abstract class AbstractQueryRunner {
      *             if a database access error occurs
      * @since DbUtils 1.1
      */
-    protected Connection prepareConnection() throws SQLException {
-        if (this.getDataSource() == null) {
-            throw new SQLException(
-                    "QueryRunner requires a DataSource to be "
-                            + "invoked in this way, or a Connection should be passed in");
+    protected Connection prepareConnection() throws SQLException
+    {
+        if (this.getDataSource() == null)
+        {
+            throw new SQLException("QueryRunner requires a DataSource to be " + "invoked in this way, or a Connection should be passed in");
         }
         return this.getDataSource().getConnection();
     }
@@ -216,50 +226,91 @@ public abstract class AbstractQueryRunner {
      * @throws SQLException
      *             if a database access error occurs
      */
-    public void fillStatement(PreparedStatement stmt, Object... params)
-            throws SQLException {
+    public void fillStatement(Connection con, PreparedStatement stmt, Object... params) throws SQLException
+    {
 
         // check the parameter count, if we can
         ParameterMetaData pmd = null;
-        if (!pmdKnownBroken) {
+        if (!pmdKnownBroken)
+        {
             pmd = stmt.getParameterMetaData();
             int stmtCount = pmd.getParameterCount();
             int paramsCount = params == null ? 0 : params.length;
 
-            if (stmtCount != paramsCount) {
-                throw new SQLException("Wrong number of parameters: expected "
-                        + stmtCount + ", was given " + paramsCount);
+            if (stmtCount != paramsCount)
+            {
+                throw new SQLException("Wrong number of parameters: expected " + stmtCount + ", was given " + paramsCount);
             }
         }
 
         // nothing to do here
-        if (params == null) {
+        if (params == null)
+        {
             return;
         }
 
-        for (int i = 0; i < params.length; i++) {
-            if (params[i] != null) {
-                stmt.setObject(i + 1, params[i]);
-            } else {
+        for (int i = 0; i < params.length; i++)
+        {
+            if (params[i] != null)
+            {
+                Object paramVal = params[i];
+                if (isArrayParameter(paramVal))
+                {
+                    ArrayParam ap = (ArrayParam) paramVal;
+                    Array arrayOf = con.createArrayOf(ap.getTypeName(), ap.getValues());
+                    stmt.setArray(i + 1, arrayOf);
+                }
+                else
+                {
+                    stmt.setObject(i + 1, params[i]);
+                }
+            }
+            else
+            {
                 // VARCHAR works with many drivers regardless
                 // of the actual column type. Oddly, NULL and
                 // OTHER don't work with Oracle's drivers.
                 int sqlType = Types.VARCHAR;
-                if (!pmdKnownBroken) {
-                    try {
+                if (!pmdKnownBroken)
+                {
+                    try
+                    {
                         /*
                          * It's not possible for pmdKnownBroken to change from
                          * true to false, (once true, always true) so pmd cannot
                          * be null here.
                          */
                         sqlType = pmd.getParameterType(i + 1);
-                    } catch (SQLException e) {
+                    }
+                    catch (SQLException e)
+                    {
                         pmdKnownBroken = true;
                     }
                 }
                 stmt.setNull(i + 1, sqlType);
             }
         }
+    }
+
+    private boolean isArrayParameter(Object parameterValue)
+    {
+        Class<?>[] interfaces = parameterValue.getClass().getInterfaces();
+        if (interfaces != null)
+        {
+            for (int i = 0; i < interfaces.length; i++)
+            {
+                if (interfaces[i].equals(ArrayParam.class))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    public interface ArrayParam
+    {
+        public String getTypeName();
+
+        public Object[] getValues();
     }
 
     /**
@@ -276,32 +327,37 @@ public abstract class AbstractQueryRunner {
      * @throws SQLException
      *             if a database access error occurs
      */
-    public void fillStatementWithBean(PreparedStatement stmt, Object bean,
-            PropertyDescriptor[] properties) throws SQLException {
+    public void fillStatementWithBean(PreparedStatement stmt, Object bean, PropertyDescriptor[] properties) throws SQLException
+    {
         Object[] params = new Object[properties.length];
-        for (int i = 0; i < properties.length; i++) {
+        for (int i = 0; i < properties.length; i++)
+        {
             PropertyDescriptor property = properties[i];
             Object value = null;
             Method method = property.getReadMethod();
-            if (method == null) {
-                throw new RuntimeException("No read method for bean property "
-                        + bean.getClass() + " " + property.getName());
+            if (method == null)
+            {
+                throw new RuntimeException("No read method for bean property " + bean.getClass() + " " + property.getName());
             }
-            try {
+            try
+            {
                 value = method.invoke(bean, new Object[0]);
-            } catch (InvocationTargetException e) {
-                throw new RuntimeException("Couldn't invoke method: " + method,
-                        e);
-            } catch (IllegalArgumentException e) {
-                throw new RuntimeException(
-                        "Couldn't invoke method with 0 arguments: " + method, e);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException("Couldn't invoke method: " + method,
-                        e);
+            }
+            catch (InvocationTargetException e)
+            {
+                throw new RuntimeException("Couldn't invoke method: " + method, e);
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new RuntimeException("Couldn't invoke method with 0 arguments: " + method, e);
+            }
+            catch (IllegalAccessException e)
+            {
+                throw new RuntimeException("Couldn't invoke method: " + method, e);
             }
             params[i] = value;
         }
-        fillStatement(stmt, params);
+        fillStatement(stmt.getConnection(), stmt, params);
     }
 
     /**
@@ -319,35 +375,39 @@ public abstract class AbstractQueryRunner {
      * @throws SQLException
      *             If a database access error occurs
      */
-    public void fillStatementWithBean(PreparedStatement stmt, Object bean,
-            String... propertyNames) throws SQLException {
+    public void fillStatementWithBean(PreparedStatement stmt, Object bean, String... propertyNames) throws SQLException
+    {
         PropertyDescriptor[] descriptors;
-        try {
-            descriptors = Introspector.getBeanInfo(bean.getClass())
-                    .getPropertyDescriptors();
-        } catch (IntrospectionException e) {
-            throw new RuntimeException("Couldn't introspect bean "
-                    + bean.getClass().toString(), e);
+        try
+        {
+            descriptors = Introspector.getBeanInfo(bean.getClass()).getPropertyDescriptors();
+        }
+        catch (IntrospectionException e)
+        {
+            throw new RuntimeException("Couldn't introspect bean " + bean.getClass().toString(), e);
         }
         PropertyDescriptor[] sorted = new PropertyDescriptor[propertyNames.length];
-        for (int i = 0; i < propertyNames.length; i++) {
+        for (int i = 0; i < propertyNames.length; i++)
+        {
             String propertyName = propertyNames[i];
-            if (propertyName == null) {
-                throw new NullPointerException("propertyName can't be null: "
-                        + i);
+            if (propertyName == null)
+            {
+                throw new NullPointerException("propertyName can't be null: " + i);
             }
             boolean found = false;
-            for (int j = 0; j < descriptors.length; j++) {
+            for (int j = 0; j < descriptors.length; j++)
+            {
                 PropertyDescriptor descriptor = descriptors[j];
-                if (propertyName.equals(descriptor.getName())) {
+                if (propertyName.equals(descriptor.getName()))
+                {
                     sorted[i] = descriptor;
                     found = true;
                     break;
                 }
             }
-            if (!found) {
-                throw new RuntimeException("Couldn't find bean property: "
-                        + bean.getClass() + " " + propertyName);
+            if (!found)
+            {
+                throw new RuntimeException("Couldn't find bean property: " + bean.getClass() + " " + propertyName);
             }
         }
         fillStatementWithBean(stmt, bean, sorted);
@@ -370,11 +430,12 @@ public abstract class AbstractQueryRunner {
      * @throws SQLException
      *             if a database access error occurs
      */
-    protected void rethrow(SQLException cause, String sql, Object... params)
-            throws SQLException {
+    protected void rethrow(SQLException cause, String sql, Object... params) throws SQLException
+    {
 
         String causeMessage = cause.getMessage();
-        if (causeMessage == null) {
+        if (causeMessage == null)
+        {
             causeMessage = "";
         }
         StringBuffer msg = new StringBuffer(causeMessage);
@@ -383,14 +444,16 @@ public abstract class AbstractQueryRunner {
         msg.append(sql);
         msg.append(" Parameters: ");
 
-        if (params == null) {
+        if (params == null)
+        {
             msg.append("[]");
-        } else {
+        }
+        else
+        {
             msg.append(Arrays.deepToString(params));
         }
 
-        SQLException e = new SQLException(msg.toString(), cause.getSQLState(),
-                cause.getErrorCode());
+        SQLException e = new SQLException(msg.toString(), cause.getSQLState(), cause.getErrorCode());
         e.setNextException(cause);
 
         throw e;
@@ -408,7 +471,8 @@ public abstract class AbstractQueryRunner {
      *
      * <pre>
      * QueryRunner run = new QueryRunner() {
-     *     protected ResultSet wrap(ResultSet rs) {
+     *     protected ResultSet wrap(ResultSet rs)
+     *     {
      *         return StringTrimmedResultSet.wrap(rs);
      *     }
      * };
@@ -419,7 +483,8 @@ public abstract class AbstractQueryRunner {
      *            <code>null</code>.
      * @return The <code>ResultSet</code> wrapped in some decorator.
      */
-    protected ResultSet wrap(ResultSet rs) {
+    protected ResultSet wrap(ResultSet rs)
+    {
         return rs;
     }
 
@@ -434,7 +499,8 @@ public abstract class AbstractQueryRunner {
      *             if a database access error occurs
      * @since DbUtils 1.1
      */
-    protected void close(Connection conn) throws SQLException {
+    protected void close(Connection conn) throws SQLException
+    {
         DbUtils.close(conn);
     }
 
@@ -449,7 +515,8 @@ public abstract class AbstractQueryRunner {
      *             if a database access error occurs
      * @since DbUtils 1.1
      */
-    protected void close(Statement stmt) throws SQLException {
+    protected void close(Statement stmt) throws SQLException
+    {
         DbUtils.close(stmt);
     }
 
@@ -464,7 +531,8 @@ public abstract class AbstractQueryRunner {
      *             if a database access error occurs
      * @since DbUtils 1.1
      */
-    protected void close(ResultSet rs) throws SQLException {
+    protected void close(ResultSet rs) throws SQLException
+    {
         DbUtils.close(rs);
     }
 

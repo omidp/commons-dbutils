@@ -146,7 +146,7 @@ public class QueryRunner extends AbstractQueryRunner {
             stmt = this.prepareStatement(conn, sql);
 
             for (int i = 0; i < params.length; i++) {
-                this.fillStatement(stmt, params[i]);
+                this.fillStatement(conn, stmt, params[i]);
                 stmt.addBatch();
             }
             rows = stmt.executeBatch();
@@ -343,7 +343,7 @@ public class QueryRunner extends AbstractQueryRunner {
 
         try {
             stmt = this.prepareStatement(conn, sql);
-            this.fillStatement(stmt, params);
+            this.fillStatement(conn, stmt, params);
             rs = this.wrap(stmt.executeQuery());
             result = rsh.handle(rs);
 
@@ -484,7 +484,7 @@ public class QueryRunner extends AbstractQueryRunner {
 
         try {
             stmt = this.prepareStatement(conn, sql);
-            this.fillStatement(stmt, params);
+            this.fillStatement(conn, stmt, params);
             rows = stmt.executeUpdate();
 
         } catch (SQLException e) {
@@ -602,7 +602,7 @@ public class QueryRunner extends AbstractQueryRunner {
 
         try {
             stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-            this.fillStatement(stmt, params);
+            this.fillStatement(conn, stmt, params);
             stmt.executeUpdate();
             ResultSet resultSet = stmt.getGeneratedKeys();
             generatedKeys = rsh.handle(resultSet);
@@ -690,7 +690,7 @@ public class QueryRunner extends AbstractQueryRunner {
             stmt = this.prepareStatement(conn, sql, Statement.RETURN_GENERATED_KEYS);
 
             for (int i = 0; i < params.length; i++) {
-                this.fillStatement(stmt, params[i]);
+                this.fillStatement(conn, stmt, params[i]);
                 stmt.addBatch();
             }
             stmt.executeBatch();
